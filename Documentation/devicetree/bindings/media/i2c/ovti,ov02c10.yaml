@@ -43,6 +43,9 @@ properties:
   dvdd-supply:
     description: Digital circuit voltage supply.
 
+  indicator-gpios:
+    description: Active high GPIO connected LED camera activity indicator.
+
   reset-gpios:
     description: Active low GPIO connected to XSHUTDOWN pad of the sensor.
 
@@ -91,6 +94,7 @@ examples:
             compatible = "ovti,ov02c10";
             reg = <0x36>;
 
+            indicator-gpios = <&tlmm 110 GPIO_ACTIVE_HIGH>;
             reset-gpios = <&tlmm 237 GPIO_ACTIVE_LOW>;
             pinctrl-names = "default";
             pinctrl-0 = <&cam_rgb_defaultt>;
