@@ -386,6 +386,7 @@ struct ov02c10 {
 	struct v4l2_ctrl *exposure;
 
 	struct clk *img_clk;
+	struct gpio_desc *indicator;
 	struct gpio_desc *reset;
 	struct regulator_bulk_data supplies[ARRAY_SIZE(ov02c10_supply_names)];
 
@@ -579,6 +580,9 @@ static int ov02c10_enable_streams(struct v4l2_subdev *sd,
 	if (ret)
 		return ret;
 
+	if (ov02c10->indicator)
+		gpiod_set_value_cansleep(ov02c10->indicator, 1);
+
 	reg_sequence = mode->reg_sequence;
 	sequence_length = mode->sequence_length;
 	ret = regmap_multi_reg_write(ov02c10->regmap,
@@ -603,8 +607,11 @@ static int ov02c10_enable_streams(struct v4l2_subdev *sd,
 
 	ret = cci_write(ov02c10->regmap, OV02C10_REG_STREAM_CONTROL, 1, NULL);
 out:
-	if (ret)
+	if (ret) {
 		pm_runtime_put(&client->dev);
+		if (ov02c10->indicator)
+			gpiod_set_value_cansleep(ov02c10->indicator, 0);
+	}
 
 	return ret;
 }
@@ -618,6 +625,9 @@ static int ov02c10_disable_streams(struct v4l2_subdev *sd,
 
 	cci_write(ov02c10->regmap, OV02C10_REG_STREAM_CONTROL, 0, NULL);
 	pm_runtime_put(&client->dev);
+
+	if (ov02c10->indicator)
+		gpiod_set_value_cansleep(ov02c10->indicator, 0);
 
 	return 0;
 }
@@ -641,12 +651,28 @@ static int ov02c10_get_pm_resources(struct device *dev)
 				       ov02c10->supplies);
 }
 
+static int ov02c10_get_indicator_resources(struct device *dev)
+{
+	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+	struct ov02c10 *ov02c10 = to_ov02c10(sd);
+
+	ov02c10->indicator = devm_gpiod_get_optional(dev, "indicator", GPIOD_OUT_LOW);
+	if (IS_ERR(ov02c10->indicator))
+		return dev_err_probe(dev, PTR_ERR(ov02c10->indicator),
+				     "failed to get indicator gpio\n");
+
+	return 0;
+}
+
 static int ov02c10_power_off(struct device *dev)
 {
 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
 	struct ov02c10 *ov02c10 = to_ov02c10(sd);
 
 	gpiod_set_value_cansleep(ov02c10->reset, 1);
+
+	if (ov02c10->indicator)
+		gpiod_set_value_cansleep(ov02c10->indicator, 0);
 
 	regulator_bulk_disable(ARRAY_SIZE(ov02c10_supply_names),
 			       ov02c10->supplies);
@@ -902,6 +928,10 @@ static int ov02c10_probe(struct i2c_client *client)
 		return ret;
 
 	ret = ov02c10_get_pm_resources(&client->dev);
+	if (ret)
+		return ret;
+
+	ret = ov02c10_get_indicator_resources(&client->dev);
 	if (ret)
 		return ret;
 
