@@ -85,6 +85,11 @@
 	firmware-name = "qcom/x1p42100/ASUSTeK/zenbook-a14/qcdxkmsucpurwa.mbn";
 };
 
+&iris {
+	firmware-name = "qcom/x1p42100/ASUSTeK/zenbook-a14/qcvss8380_pa.mbn";
+	status = "okay";
+};
+
 &pcie4_port0 {
 	wifi@0 {
 		compatible = "pci17cb,1103";
